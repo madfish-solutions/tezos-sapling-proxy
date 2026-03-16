@@ -69,11 +69,11 @@ function App() {
     }
 
     const messageHandler = async (event: MessageEvent) => {
+      let parsedMessageId: string | undefined;
       try {
         console.log('messageHandler', event.data);
-        const { method, payload } = JSON.parse(event.data);
-        console.log('method', method);
-        console.log('payload', payload);
+        const { method, id, payload } = JSON.parse(event.data);
+        parsedMessageId = id;
         switch (method) {
           case 'saplingCredentials': {
             const spendingKey = await getSpendingKey(payload);
@@ -81,7 +81,8 @@ function App() {
 
             postResponse({
               viewingKey: saplingViewingKeyProvider.getFullViewingKey().toString('hex'),
-              saplingAddress: (await saplingViewingKeyProvider.getAddress()).address
+              saplingAddress: (await saplingViewingKeyProvider.getAddress()).address,
+              id
             });
             break;
           }
@@ -111,7 +112,8 @@ function App() {
                   value: value.toFixed(),
                   ...restProps
                 }))
-              }
+              },
+              id
             });
             break;
           }
@@ -125,13 +127,13 @@ function App() {
             );
             switch (transaction.type) {
               case 'unshielded':
-                postResponse({ txData: await saplingToolkit.prepareUnshieldedTransaction(transaction.params) });
+                postResponse({ txData: await saplingToolkit.prepareUnshieldedTransaction(transaction.params), id });
                 break;
               case 'shielded':
-                postResponse({ txData: await saplingToolkit.prepareShieldedTransaction(transaction.params) });
+                postResponse({ txData: await saplingToolkit.prepareShieldedTransaction(transaction.params), id });
                 break;
               case 'sapling':
-                postResponse({ txData: await saplingToolkit.prepareSaplingTransaction(transaction.params) });
+                postResponse({ txData: await saplingToolkit.prepareSaplingTransaction(transaction.params), id });
                 break;
               default:
                 throw new Error(`Invalid transaction type: ${transaction.type}`);
@@ -143,10 +145,7 @@ function App() {
         }
       } catch (error) {
         console.error(error);
-        // @ts-expect-error - ReactNativeWebView is not typed
-        window.ReactNativeWebView.postMessage(
-          JSON.stringify({ error: error instanceof Error ? error.message : String(error) })
-        );
+        postResponse({ error: error instanceof Error ? error.message : String(error), id: parsedMessageId });
       }
     };
     window.addEventListener('message', messageHandler);
